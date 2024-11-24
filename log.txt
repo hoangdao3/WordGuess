@@ -1,0 +1,11 @@
+[2024-11-12 08:45:05] User: alo1, Command: REGISTER, Result: Failure - Username already exists
+[2024-11-12 09:35:19] User: aloi1, Command: LOGIN, Result: Failure - Invalid credentials
+[2024-11-12 09:54:01] User: alo, Command: LOGIN, Result: Failure - Invalid command format
+[2024-11-12 09:54:14] User: alo, Command: REGISTER, Result: Failure - Username already exists
+[2024-11-12 09:54:21] User: alo, Command: REGISTER, Result: Failure - Invalid command format
+[2024-11-12 09:59:13] User: hoang, Command: LOGIN, Result: Success
+[2024-11-12 09:59:17] User: hoang, Command: LOGIN, Result: Failure - Invalid credentials
+[2024-11-12 09:59:20] User: hoang, Command: LOGIN, Result: Failure - Invalid command format
+[2024-11-12 10:02:10] User: hoang, Command: LOGIN, Result: Success
+[2024-11-12 10:02:16] User: hoang, Command: LOGIN, Result: Failure - Invalid credentials
+[2024-11-12 10:02:22] User: hoang, Command: LONGIN hoang hoang hoang, Result: Unknown command

@@ -1,8 +1,6 @@
 package org.example.wordgame.constant;
 
-import org.omg.CORBA.INITIALIZE;
 
-import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
 
@@ -12,6 +10,6 @@ public class GameConstants {
     public static final int INIT_GUESS_POINTS = 10;
     public static final List<String> GUESS_WORDS = Arrays.asList("apple", "banana", "cherry");
     public static final int START_MEMBERS = 10;
-    public static final int END_TIMES = 100; // seconds
+    public static final int END_TIMES = 1000; // seconds
 
 }

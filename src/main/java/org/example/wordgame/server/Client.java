@@ -1,7 +1,7 @@
 package org.example.wordgame.server;
 
 import java.io.*;
-import java.net.Socket;
+import java.net.*;
 import java.util.Scanner;
 
 public class Client {
@@ -27,8 +27,11 @@ public class Client {
 
                 out.println(command);
 
+                // Read a single line of response from server
                 String response = in.readLine();
-                System.out.println("Server response: " + response);
+                if (response != null) {
+                    System.out.println("Server response: " + response);
+                }
             }
         } catch (IOException e) {
             System.out.println("Error connecting to server: " + e.getMessage());

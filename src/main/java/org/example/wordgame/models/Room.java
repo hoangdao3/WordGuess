@@ -18,4 +18,36 @@ public class Room {
     public Room(){
 
     }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getRoomName() {
+        return roomName;
+    }
+
+    public void setRoomName(String roomName) {
+        this.roomName = roomName;
+    }
+
+    public int getCurrentPlayers() {
+        return currentPlayers;
+    }
+
+    public void setCurrentPlayers(int currentPlayers) {
+        this.currentPlayers = currentPlayers;
+    }
+
+    public List<User> getParticipants() {
+        return participants;
+    }
+
+    public void setParticipants(List<User> participants) {
+        this.participants = participants;
+    }
 }
