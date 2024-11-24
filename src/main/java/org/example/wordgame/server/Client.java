@@ -16,21 +16,24 @@ public class Client {
 
             System.out.println("Connected to the server. Type commands to interact.");
 
-            while (true) {
-                System.out.print("Enter command: ");
-                String command = scanner.nextLine();
-
-                if (command.equalsIgnoreCase("exit")) {
-                    System.out.println("Exiting client.");
-                    break;
+            new Thread(() -> {
+                String serverResponse;
+                try {
+                    while ((serverResponse = in.readLine()) != null) {
+                        System.out.println("Server response: " + serverResponse);
+                    }
+                } catch (IOException e) {
+                    System.out.println("Error reading server response: " + e.getMessage());
                 }
+            }).start();
 
+            String command;
+            while (true) {
+                command = scanner.nextLine();
                 out.println(command);
 
-                // Read a single line of response from server
-                String response = in.readLine();
-                if (response != null) {
-                    System.out.println("Server response: " + response);
+                if (command.equalsIgnoreCase("exit")) {
+                    break;
                 }
             }
         } catch (IOException e) {

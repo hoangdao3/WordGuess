@@ -37,6 +37,7 @@ public class Server {
             this.socket = socket;
             this.out = new PrintWriter(socket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            sendInitialInstructions();
         }
 
         public void run() {
@@ -60,7 +61,7 @@ public class Server {
                             handleLogin(username, command);
                             break;
                         case "LOGOUT":
-                            handleLogout(username, command);
+                            handleLogout(username);
                             break;
                         case "CHANGE_PASSWORD":
                             handleChangePassword(username, command);
@@ -76,6 +77,21 @@ public class Server {
                             break;
                         case "LEAVE_ROOM":
                             handleLeaveRoom(username);
+                            break;
+                        case "SEND_HINT":
+                            handleSendHint(command);
+                            break;
+                        case "RECEIVE_HINT_TEXT":
+                            handleReceiveHintText(command);
+                            break;
+                        case "RECEIVE_HINT_IMAGE":
+                            handleReceiveHintImage(command);
+                            break;
+                        case "SEND_WORD":
+                            handleSendWord(command);
+                            break;
+                        case "MY_POINTS":
+                            handleMyPoints(username);
                             break;
                         default:
                             sendResponse("Unknown command.");
@@ -93,9 +109,31 @@ public class Server {
             }
         }
 
+        private void sendInitialInstructions() {
+            sendResponse("Dang ki tai khoan: REGISTER <username> <password>");
+            sendResponse("Dang nhap: LOGIN <username> <password>");
+            sendResponse("Dang xuat: LOGOUT <user_id>");
+            sendResponse("Doi mat khau: CHANGE_PASSWORD <username> <old_password> <new_password>");
+        }
+
+        private void sendRoomInstructions() {
+            sendResponse("Danh sach phong: LIST_ROOM <username>");
+            sendResponse("Tao phong: CREATE_ROOM <username> <room_name>");
+            sendResponse("Tham gia phong: JOIN_ROOM <username> <room_name>");
+            sendResponse("Roi khoi phong: LEAVE_ROOM <user_name>");
+        }
+
+        private void sendGameplayInstructions() {
+            sendResponse("Gui goi y: SEND_HINT \"hint\"");
+            sendResponse("Nhan goi y: RECEIVE_HINT_TEXT \"hint\"");
+            sendResponse("Nhan goi y la hinh anh: RECEIVE_HINT_IMAGE <image_path>");
+            sendResponse("Doan tu: SEND_WORD \"word\"");
+            sendResponse("Kiem tra diem: MY_POINTS <user_name>");
+        }
+
         private void sendResponse(String response) {
             out.println(response);
-            System.out.println("Server response: " + response); // Log the response to the server console
+            System.out.println("Server response: " + response);
         }
 
         private void handleRegister(String username, String[] command) {
@@ -105,8 +143,9 @@ public class Server {
             }
             String password = command[2];
 
-            try (Connection conn = DatabaseConnectionPool.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
+            try
+                    (Connection conn = DatabaseConnectionPool.getConnection();
+            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
                 stmt.setString(1, username);
                 stmt.setString(2, password);
                 stmt.executeUpdate();
@@ -121,7 +160,7 @@ public class Server {
                 sendResponse("Invalid LOGIN command.");
                 return;
             }
-            String password = command[2 ];
+            String password = command[2];
 
             try (Connection conn = DatabaseConnectionPool.getConnection();
                  PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?")) {
@@ -133,6 +172,7 @@ public class Server {
                     currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
                     loggedInUsers.put(username, currentUser );
                     sendResponse("Login successful. Welcome, " + username + "!");
+                    sendRoomInstructions();
                 } else {
                     sendResponse("Invalid username or password.");
                 }
@@ -141,19 +181,15 @@ public class Server {
             }
         }
 
-        private void handleLogout(String username, String[] command) {
-            if (command.length != 2) {
-                sendResponse("Invalid LOGOUT command.");
-                return;
-            }
-
+        private void handleLogout(String username) {
             if (!loggedInUsers.containsKey(username)) {
                 sendResponse("You must log in first.");
                 return;
             }
 
             loggedInUsers.remove(username);
-            sendResponse("User   " + username + " logged out.");
+            sendResponse("User  " + username + " logged out.");
+            sendInitialInstructions();
         }
 
         private void handleChangePassword(String username, String[] command) {
@@ -201,7 +237,7 @@ public class Server {
             } else {
                 StringBuilder response = new StringBuilder("Available rooms:");
                 for (Room room : rooms) {
-                    response.append(" Room ").append(room.getRoomName());
+                    response.append(" ").append(room.getRoomName()).append(",");
                 }
                 sendResponse(response.toString());
             }
@@ -229,28 +265,6 @@ public class Server {
             sendResponse("Room created successfully by " + username);
         }
 
-        private void handleJoinRoom(String username, String[] command) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
-
-            if (currentRoom != null) {
-                sendResponse("You are already in a room. Please leave the current room before joining a new one.");
-                return;
-            }
-
-            String roomName = command[2];
-            Room room = getRoomByName(roomName);
-            if (room == null) {
-                sendResponse("Room not found.");
-                return;
-            }
-
-            currentRoom = room;
-            sendResponse("User   " + username + " successfully joined room " + roomName);
-        }
-
         private void handleLeaveRoom(String username) {
             if (!loggedInUsers.containsKey(username)) {
                 sendResponse("You must log in first.");
@@ -262,8 +276,77 @@ public class Server {
                 return;
             }
 
+            sendResponse("User  " + username + " left the room " + currentRoom.getRoomName() + ".");
             currentRoom = null;
-            sendResponse("User   " + username + " left the room.");
+            sendRoomInstructions();
+        }
+
+        private void handleJoinRoom(String username, String[] command) {
+            if (!loggedInUsers.containsKey(username)) {
+                sendResponse("You must log in first.");
+                return;
+            }
+
+            if (currentRoom != null) {
+                sendResponse("You are already in room " + currentRoom.getRoomName() + ". Please leave the current room before joining a new one.");
+                return;
+            }
+
+            String roomName = command[2];
+            Room room = getRoomByName(roomName);
+            if (room == null) {
+                sendResponse("Room not found.");
+                return;
+            }
+
+            currentRoom = room;
+            sendResponse("User  " + username + " successfully joined room " + roomName + ".");
+            sendGameplayInstructions();
+        }
+
+        private void handleSendHint(String[] command) {
+            if (command.length < 2) {
+                sendResponse("Invalid SEND_HINT command.");
+                return;
+            }
+            String hint = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
+            sendResponse("Hint sent: " + hint);
+        }
+
+        private void handleReceiveHintText(String[] command) {
+            if (command.length < 2) {
+                sendResponse("Invalid RECEIVE_HINT_TEXT command.");
+                return;
+            }
+            String hintText = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
+            sendResponse("Received hint text: " + hintText);
+        }
+
+        private void handleReceiveHintImage(String[] command) {
+            if (command.length < 2) {
+                sendResponse("Invalid RECEIVE_HINT_IMAGE command.");
+                return;
+            }
+            String imagePath = command[1];
+            sendResponse("Received hint image from: " + imagePath);
+        }
+
+        private void handleSendWord(String[] command) {
+            if (command.length < 2) {
+                sendResponse("Invalid SEND_WORD command.");
+                return;
+            }
+            String word = command[1];
+            sendResponse("Word sent: " + word);
+        }
+
+        private void handleMyPoints(String username) {
+            if (!loggedInUsers.containsKey(username)) {
+                sendResponse("You must log in first.");
+                return;
+            }
+            int points = currentUser .getPoints();
+            sendResponse("Your points: " + points);
         }
 
         private boolean roomExists(String roomName) {
