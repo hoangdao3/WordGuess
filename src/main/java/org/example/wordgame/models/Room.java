@@ -6,48 +6,41 @@ import java.util.List;
 public class Room {
     private int id;
     private String roomName;
-    private int currentPlayers;
-    private List<User> participants;
+    private List<String> players; // Danh sách người chơi trong phòng
 
-    public Room(int id, String roomName) { // constructor for initialize new room game
+    public Room(int id, String roomName) {
         this.id = id;
         this.roomName = roomName;
-        this.currentPlayers = 0;
-        this.participants = new ArrayList<>();
-    }
-    public Room(){
-
+        this.players = new ArrayList<>();
     }
 
     public int getId() {
         return id;
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
     public String getRoomName() {
         return roomName;
     }
 
-    public void setRoomName(String roomName) {
-        this.roomName = roomName;
+    // Thêm người chơi vào phòng
+    public void addUser (String username) {
+        if (!players.contains(username)) {
+            players.add(username);
+        }
     }
 
-    public int getCurrentPlayers() {
-        return currentPlayers;
+    // Xóa người chơi khỏi phòng
+    public void removeUser (String username) {
+        players.remove(username);
     }
 
-    public void setCurrentPlayers(int currentPlayers) {
-        this.currentPlayers = currentPlayers;
+    // Kiểm tra xem người dùng có trong phòng không
+    public boolean containsUser (String username) {
+        return players.contains(username);
     }
 
-    public List<User> getParticipants() {
-        return participants;
-    }
-
-    public void setParticipants(List<User> participants) {
-        this.participants = participants;
+    // Lấy danh sách người chơi trong phòng
+    public List<String> getPlayers() {
+        return players;
     }
 }

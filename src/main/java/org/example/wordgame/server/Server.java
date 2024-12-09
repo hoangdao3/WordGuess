@@ -31,71 +31,25 @@ public class Server {
         private PrintWriter out;
         private BufferedReader in;
         private User currentUser ;
-        private Room currentRoom;
+        private boolean inGameMenu = false;
 
         public ClientHandler(Socket socket) throws IOException {
             this.socket = socket;
             this.out = new PrintWriter(socket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            sendInitialInstructions();
+            sendMainMenu();
         }
 
         public void run() {
             try {
                 String message;
                 while ((message = in.readLine()) != null) {
-                    String[] command = message.split(" ");
-
-                    if (command.length < 1) {
-                        sendResponse("Invalid command format.");
-                        continue;
-                    }
-
-                    String username = command.length > 1 ? command[1] : "";
-
-                    switch (command[0].toUpperCase()) {
-                        case "REGISTER":
-                            handleRegister(username, command);
-                            break;
-                        case "LOGIN":
-                            handleLogin(username, command);
-                            break;
-                        case "LOGOUT":
-                            handleLogout(username);
-                            break;
-                        case "CHANGE_PASSWORD":
-                            handleChangePassword(username, command);
-                            break;
-                        case "LIST_ROOM":
-                            handleListRooms(username);
-                            break;
-                        case "CREATE_ROOM":
-                            handleCreateRoom(username, command);
-                            break;
-                        case "JOIN_ROOM":
-                            handleJoinRoom(username, command);
-                            break;
-                        case "LEAVE_ROOM":
-                            handleLeaveRoom(username);
-                            break;
-                        case "SEND_HINT":
-                            handleSendHint(command);
-                            break;
-                        case "RECEIVE_HINT_TEXT":
-                            handleReceiveHintText(command);
-                            break;
-                        case "RECEIVE_HINT_IMAGE":
-                            handleReceiveHintImage(command);
-                            break;
-                        case "SEND_WORD":
-                            handleSendWord(command);
-                            break;
-                        case "MY_POINTS":
-                            handleMyPoints(username);
-                            break;
-                        default:
-                            sendResponse("Unknown command.");
-                            break;
+                    if (currentUser  == null) {
+                        handleMainMenuCommands(message);
+                    } else if (inGameMenu) {
+                        handleGameMenuCommands(message);
+                    } else {
+                        handleRoomMenuCommands(message);
                     }
                 }
             } catch (IOException e) {
@@ -109,26 +63,30 @@ public class Server {
             }
         }
 
-        private void sendInitialInstructions() {
-            sendResponse("Dang ki tai khoan: REGISTER <username> <password>");
-            sendResponse("Dang nhap: LOGIN <username> <password>");
-            sendResponse("Dang xuat: LOGOUT <user_id>");
-            sendResponse("Doi mat khau: CHANGE_PASSWORD <username> <old_password> <new_password>");
+        private void sendMainMenu() {
+            sendResponse("Menu chính:");
+            sendResponse("Nhập 1 để đăng nhập");
+            sendResponse("Nhập 2 để đăng ký");
+            sendResponse("Nhập 3 để đổi mật khẩu");
+            sendResponse("Nhập 4 để thoát");
         }
 
-        private void sendRoomInstructions() {
-            sendResponse("Danh sach phong: LIST_ROOM <username>");
-            sendResponse("Tao phong: CREATE_ROOM <username> <room_name>");
-            sendResponse("Tham gia phong: JOIN_ROOM <username> <room_name>");
-            sendResponse("Roi khoi phong: LEAVE_ROOM <user_name>");
+        private void sendRoomMenu() {
+            sendResponse("Menu phòng:");
+            sendResponse("Nhập 1 để xem danh sách phòng");
+            sendResponse("Nhập 2 để tạo phòng");
+            sendResponse("Nhập 3 để tham gia phòng");
+            sendResponse("Nhập 4 để rời phòng");
+            sendResponse("Nhập 5 để đăng xuất");
         }
 
-        private void sendGameplayInstructions() {
-            sendResponse("Gui goi y: SEND_HINT \"hint\"");
-            sendResponse("Nhan goi y: RECEIVE_HINT_TEXT \"hint\"");
-            sendResponse("Nhan goi y la hinh anh: RECEIVE_HINT_IMAGE <image_path>");
-            sendResponse("Doan tu: SEND_WORD \"word\"");
-            sendResponse("Kiem tra diem: MY_POINTS <user_name>");
+        private void sendGameMenu() {
+            sendResponse("Menu game:");
+            sendResponse("Nhập 1 để gửi gợi ý");
+            sendResponse("Nhập 2 để gửi từ đoán");
+            sendResponse("Nhập 3 để gửi hình ảnh gợi ý");
+            sendResponse("Nhập 4 để rời phòng");
+            sendResponse("Nhập 5 để đăng xuất");
         }
 
         private void sendResponse(String response) {
@@ -136,75 +94,135 @@ public class Server {
             System.out.println("Server response: " + response);
         }
 
-        private void handleRegister(String username, String[] command) {
-            if (command.length != 3) {
-                sendResponse("Invalid REGISTER command.");
-                return;
-            }
-            String password = command[2];
-
-            try
-                    (Connection conn = DatabaseConnectionPool.getConnection();
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
-                stmt.setString(1, username);
-                stmt.setString(2, password);
-                stmt.executeUpdate();
-                sendResponse("Registration successful.");
-            } catch (SQLException e) {
-                sendResponse("Username already exists.");
-            }
-        }
-
-        private void handleLogin(String username, String[] command) {
-            if (command.length != 3) {
-                sendResponse("Invalid LOGIN command.");
-                return;
-            }
-            String password = command[2];
-
-            try (Connection conn = DatabaseConnectionPool.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?")) {
-                stmt.setString(1, username);
-                stmt.setString(2, password);
-                ResultSet rs = stmt.executeQuery();
-
-                if (rs.next()) {
-                    currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
-                    loggedInUsers.put(username, currentUser );
-                    sendResponse("Login successful. Welcome, " + username + "!");
-                    sendRoomInstructions();
-                } else {
-                    sendResponse("Invalid username or password.");
-                }
-            } catch (SQLException e) {
-                sendResponse("Database error.");
+        private void handleMainMenuCommands(String message) throws IOException {
+            switch (message) {
+                case "1":
+                    handleLoginProcess();
+                    break;
+                case "2":
+                    handleRegisterProcess();
+                    break;
+                case "3":
+                    handleChangePasswordProcess();
+                    break;
+                case "4":
+                    socket.close();
+                    break;
+                default:
+                    sendResponse("Lựa chọn không hợp lệ. Vui lòng nhập lại.");
+                    sendMainMenu();
+                    break;
             }
         }
 
-        private void handleLogout(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
+        private void handleRoomMenuCommands(String message) throws IOException {
+            switch (message) {
+                case "1":
+                    handleListRooms();
+                    break;
+                case "2":
+                    handleCreateRoomProcess();
+                    break;
+                case "3":
+                    handleJoinRoomProcess();
+                    break;
+                case "4":
+                    handleLeaveRoom();
+                    break;
+                case "5":
+                    handleLogout();
+                    break;
+                default:
+                    sendResponse("Lựa chọn không hợp lệ. Vui lòng nhập lại.");
+                    sendRoomMenu();
+                    break;
             }
-
-            loggedInUsers.remove(username);
-            sendResponse("User  " + username + " logged out.");
-            sendInitialInstructions();
+        }
+        private void handleGameMenuCommands(String message) throws IOException {
+            switch (message) {
+                case "1":
+                    handleSendHint();
+                    break;
+                case "2":
+                    handleSendGuess();
+                    break;
+                case "3":
+                    handleSendImageHint();
+                    break;
+                case "4":
+                    handleLeaveRoom();
+                    break;
+                case "5":
+                    handleLogout();
+                    break;
+                default:
+                    sendResponse("Lựa chọn không hợp lệ. Vui lòng nhập lại.");
+                    sendGameMenu();
+                    break;
+            }
         }
 
-        private void handleChangePassword(String username, String[] command) {
-            if (command.length != 4) {
-                sendResponse("Invalid CHANGE_PASSWORD command.");
-                return;
-            }
-            String oldPassword = command[2];
-            String newPassword = command[3];
+        private void handleSendHint() throws IOException {
+            sendResponse("Nhập gợi ý của bạn:");
+            String hint = in.readLine();
+            // Handle sending the hint (save it, broadcast it to other players, etc.)
+            sendResponse("Gợi ý của bạn đã được gửi: " + hint);
+        }
 
-            if (newPassword.equals(oldPassword)) {
-                sendResponse("New password cannot be the same as the old password.");
-                return;
+        private void handleSendGuess() throws IOException {
+            sendResponse("Nhập từ bạn đoán:");
+            String guess = in.readLine();
+            // Handle checking the guess (compare it with the correct word, etc.)
+            boolean isCorrect = checkGuess(guess);
+            if (isCorrect) {
+                sendResponse("Chúc mừng! Bạn đoán đúng từ.");
+                // Handle game end or scoring logic
+            } else {
+                sendResponse("Sai rồi. Hãy thử lại!");
             }
+        }
 
+        private boolean checkGuess(String guess) {
+            // Check if the guess matches the word in the room (or game)
+            // You can implement game-specific logic here
+            // For now, assume the word to guess is "example"
+            return "example".equalsIgnoreCase(guess);
+        }
+
+        private void handleSendImageHint() throws IOException {
+            sendResponse("Nhập đường dẫn đến hình ảnh gợi ý:");
+            String imagePath = in.readLine();
+            // Handle sending the image (you could send the image file path, validate it, etc.)
+            sendResponse("Hình ảnh gợi ý đã được gửi: " + imagePath);
+        }
+
+        private void handleLoginProcess() throws IOException {
+            sendResponse("Vui lòng nhập username:");
+            String username = in.readLine();
+            sendResponse("Vui lòng nhập mật khẩu:");
+            String password = in.readLine();
+            handleLogin(username, password);
+        }
+
+        private void handleRegisterProcess() throws IOException {
+            sendResponse("Vui lòng nhập username:");
+            String username = in.readLine();
+            sendResponse("Vui lòng nhập mật khẩu:");
+            String password = in.readLine();
+            handleRegister(username, password);
+        }
+
+        private void handleChangePasswordProcess() throws IOException {
+            sendResponse("Vui lòng nhập username:");
+            String username = in.readLine();
+            sendResponse("Vui lòng nhập mật khẩu cũ:");
+            String oldPassword = in.readLine();
+            sendResponse("Vui lòng nhập mật khẩu mới:");
+            String newPassword = in.readLine();
+            handleChangePassword(username, oldPassword, newPassword);
+        }
+
+        private void handleChangePassword(String username, String oldPassword, String newPassword) {
             try (Connection conn = DatabaseConnectionPool.getConnection();
                  PreparedStatement checkStmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?");
                  PreparedStatement updateStmt = conn.prepareStatement("UPDATE users SET password = ? WHERE username = ?")) {
@@ -217,25 +235,53 @@ public class Server {
                     updateStmt.setString(1, newPassword);
                     updateStmt.setString(2, username);
                     updateStmt.executeUpdate();
-                    sendResponse("Password changed successfully.");
+                    sendResponse("Đổi mật khẩu thành công.");
                 } else {
-                    sendResponse("Incorrect old password.");
+                    sendResponse("Mật khẩu cũ không chính xác.");
                 }
             } catch (SQLException e) {
-                sendResponse("Database error.");
+                sendResponse("Lỗi cơ sở dữ liệu.");
             }
         }
 
-        private void handleListRooms(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
+        private void handleLogin(String username, String password) {
+            try (Connection conn = DatabaseConnectionPool.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?")) {
+                stmt.setString(1, username);
+                stmt.setString(2, password);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+//                    currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
+                    currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"), socket);
+                    loggedInUsers.put(username, currentUser );
+                    sendResponse("Đăng nhập thành công. Xin chào, " + username + "!");
+                    sendRoomMenu();
+                } else {
+                    sendResponse("Tên người dùng hoặc mật khẩu không chính xác.");
+                    sendMainMenu();
+                }
+            } catch (SQLException e) {
+                sendResponse("Lỗi cơ sở dữ liệu.");
             }
+        }
 
+        private void handleRegister(String username, String password) {
+            try (Connection conn = DatabaseConnectionPool.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
+                stmt.setString(1, username);
+                stmt.setString(2, password);
+                stmt.executeUpdate();
+                sendResponse("Đăng ký thành công.");
+            } catch (SQLException e) {
+                sendResponse("Tên người dùng đã tồn tại.");
+            }
+        }
+
+        private void handleListRooms() {
             if (rooms.isEmpty()) {
-                sendResponse("No rooms available.");
+                sendResponse("Không có phòng nào khả dụng.");
             } else {
-                StringBuilder response = new StringBuilder("Available rooms:");
+                StringBuilder response = new StringBuilder("Danh sách phòng:");
                 for (Room room : rooms) {
                     response.append(" ").append(room.getRoomName()).append(",");
                 }
@@ -243,116 +289,121 @@ public class Server {
             }
         }
 
-        private void handleCreateRoom(String username, String[] command) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
+        private void handleLeaveRoom() {
+            if (currentUser  == null) {
+                sendResponse("Bạn chưa đăng nhập.");
                 return;
             }
 
-            if (rooms.size() >= GameConstants.MAX_ROOMS) {
-                sendResponse("Maximum number of rooms reached.");
-                return;
-            }
-
-            String roomName = command[2];
-            if (roomExists(roomName)) {
-                sendResponse("Room with this name already exists.");
-                return;
-            }
-
-            Room newRoom = new Room(rooms.size() + 1, roomName);
-            rooms.add(newRoom);
-            sendResponse("Room created successfully by " + username);
-        }
-
-        private void handleLeaveRoom(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
+            Room currentRoom = getCurrentRoomOfUser (currentUser .getUsername());
 
             if (currentRoom == null) {
-                sendResponse("You are not in any room.");
+                sendResponse("Bạn không ở trong phòng nào.");
                 return;
             }
 
-            sendResponse("User  " + username + " left the room " + currentRoom.getRoomName() + ".");
-            currentRoom = null;
-            sendRoomInstructions();
+            // Xóa người dùng khỏi danh sách người chơi của phòng
+            currentRoom.removeUser (currentUser .getUsername());
+            sendResponse("Bạn đã rời khỏi phòng " + currentRoom.getRoomName() + ".");
+
+            // Hiển thị lại menu phòng
+            sendRoomMenu();
         }
 
-        private void handleJoinRoom(String username, String[] command) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
+        private Room getCurrentRoomOfUser (String username) {
+            for (Room room : rooms) {
+                if (room.containsUser (username)) {
+                    return room;
+                }
+            }
+            return null; // Người dùng không ở trong phòng nào
+        }
+
+        private void handleCreateRoomProcess() throws IOException {
+            sendResponse("Nhập tên phòng muốn tạo:");
+            String roomName = in.readLine();
+            handleCreateRoom(roomName);
+        }
+
+        private void handleCreateRoom(String roomName) {
+            if (rooms.size() >= GameConstants.MAX_ROOMS) {
+                sendResponse("Không thể tạo phòng mới. Đã đạt giới hạn số phòng tối đa.");
+                return;
+            }
+            if (roomExists(roomName)) {
+                sendResponse("Phòng với tên này đã tồn tại.");
+                return;
+            }
+            Room newRoom = new Room(rooms.size() + 1, roomName);
+            rooms.add(newRoom);
+            sendResponse("Phòng đã được tạo thành công: " + roomName);
+        }
+
+        private void handleJoinRoomProcess() throws IOException {
+            sendResponse("Nhập tên phòng muốn tham gia:");
+            String roomName = in.readLine();
+            handleJoinRoom(roomName);
+        }
+
+        private void handleJoinRoom(String roomName) throws IOException {
+            if (currentUser  == null) {
+                sendResponse("Bạn chưa đăng nhập.");
                 return;
             }
 
+            // Kiểm tra xem người dùng đã ở trong phòng nào chưa
+            Room currentRoom = getCurrentRoomOfUser (currentUser .getUsername());
             if (currentRoom != null) {
-                sendResponse("You are already in room " + currentRoom.getRoomName() + ". Please leave the current room before joining a new one.");
+                sendResponse("Bạn đã ở trong phòng " + currentRoom.getRoomName() + ". Vui lòng rời phòng này trước khi tham gia phòng khác.");
                 return;
             }
 
-            String roomName = command[2];
             Room room = getRoomByName(roomName);
             if (room == null) {
-                sendResponse("Room not found.");
-                return;
-            }
+                sendResponse("Không tìm thấy phòng.");
+            } else {
+                room.addUser (currentUser .getUsername());
+                sendResponse("Bạn đã tham gia phòng " + roomName + " thành công.");
 
-            currentRoom = room;
-            sendResponse("User  " + username + " successfully joined room " + roomName + ".");
-            sendGameplayInstructions();
+                // Kiểm tra số lượng người chơi trong phòng
+                if (room.getPlayers().size() >= GameConstants.START_MEMBERS) {
+                    notifyRoomStart(room);
+                }
+                inGameMenu = true;
+                // Hiển thị menu game sau khi tham gia phòng
+                sendGameMenu();
+            }
         }
 
-        private void handleSendHint(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid SEND_HINT command.");
-                return;
+        private void notifyRoomStart(Room room) {
+            String message = "Phòng " + room.getRoomName() + " đã đủ số lượng người chơi. Bắt đầu chơi!";
+            for (String player : room.getPlayers()) {
+                sendResponseToUser(player, message);
             }
-            String hint = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-            sendResponse("Hint sent: " + hint);
         }
 
-        private void handleReceiveHintText(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid RECEIVE_HINT_TEXT command.");
-                return;
+        private void sendResponseToUser (String username, String message) {
+            // Tìm kiếm người dùng trong danh sách đã đăng nhập và gửi thông điệp
+            User user = loggedInUsers.get(username);
+            if (user != null) {
+                try {
+                    PrintWriter userOut = new PrintWriter(user.getSocket().getOutputStream(), true);
+                    userOut.println(message); // Gửi thông điệp đến người dùng
+                    System.out.println("Gửi thông điệp đến " + username + ": " + message);
+                } catch (IOException e) {
+                    System.out.println("Không thể gửi thông điệp đến " + username + ": " + e.getMessage());
+                }
             }
-            String hintText = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-            sendResponse("Received hint text: " + hintText);
-        }
-
-        private void handleReceiveHintImage(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid RECEIVE_HINT_IMAGE command.");
-                return;
-            }
-            String imagePath = command[1];
-            sendResponse("Received hint image from: " + imagePath);
-        }
-
-        private void handleSendWord(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid SEND_WORD command.");
-                return;
-            }
-            String word = command[1];
-            sendResponse("Word sent: " + word);
-        }
-
-        private void handleMyPoints(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
-            int points = currentUser .getPoints();
-            sendResponse("Your points: " + points);
         }
 
         private boolean roomExists(String roomName) {
             return getRoomByName(roomName) != null;
         }
-
+        private void handleLogout() {
+            sendResponse("Bạn đã đăng xuất.");
+            currentUser = null;
+            sendMainMenu();
+        }
         private Room getRoomByName(String roomName) {
             for (Room room : rooms) {
                 if (room.getRoomName().equals(roomName)) {
