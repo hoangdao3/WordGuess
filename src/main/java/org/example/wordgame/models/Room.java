@@ -1,12 +1,17 @@
 package org.example.wordgame.models;
 
+import org.example.wordgame.constant.GameConstants;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class Room {
     private int id;
     private String roomName;
-    private List<String> players; // Danh sách người chơi trong phòng
+    private List<String> players; // List of players in the room
+    private String guesser; // The player who is guessing the word
+    private String wordToGuess; // The word to guess
 
     public Room(int id, String roomName) {
         this.id = id;
@@ -22,25 +27,44 @@ public class Room {
         return roomName;
     }
 
-    // Thêm người chơi vào phòng
     public void addUser (String username) {
         if (!players.contains(username)) {
             players.add(username);
+            // If this is the first player, set them as the guesser
+            if (players.size() == 1) {
+                guesser = username;
+                wordToGuess = getRandomWord(); // Assign a random word to the guesser
+            }
         }
     }
 
-    // Xóa người chơi khỏi phòng
     public void removeUser (String username) {
         players.remove(username);
+        // If the guesser leaves, reset the guesser and word
+        if (username.equals(guesser)) {
+            guesser = null;
+            wordToGuess = null;
+        }
     }
 
-    // Kiểm tra xem người dùng có trong phòng không
     public boolean containsUser (String username) {
         return players.contains(username);
     }
 
-    // Lấy danh sách người chơi trong phòng
     public List<String> getPlayers() {
         return players;
+    }
+
+    public String getGuesser() {
+        return guesser;
+    }
+
+    public String getWordToGuess() {
+        return wordToGuess;
+    }
+
+    private String getRandomWord() {
+        Random random = new Random();
+        return GameConstants.GUESS_WORDS.get(random.nextInt(GameConstants.GUESS_WORDS.size()));
     }
 }

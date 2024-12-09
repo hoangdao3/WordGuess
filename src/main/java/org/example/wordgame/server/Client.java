@@ -20,7 +20,7 @@ public class Client {
                 String serverResponse;
                 try {
                     while ((serverResponse = in.readLine()) != null) {
-                        System.out.println("Server: " + serverResponse);
+                        System.out.println(serverResponse);
                     }
                 } catch (IOException e) {
                     System.out.println("Error reading server response: " + e.getMessage());

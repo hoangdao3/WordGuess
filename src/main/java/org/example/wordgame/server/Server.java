@@ -162,25 +162,25 @@ public class Server {
             }
         }
 
-        private void handleSendHint() throws IOException {
-            sendResponse("Nhập gợi ý của bạn:");
-            String hint = in.readLine();
-            // Handle sending the hint (save it, broadcast it to other players, etc.)
-            sendResponse("Gợi ý của bạn đã được gửi: " + hint);
-        }
-
-        private void handleSendGuess() throws IOException {
-            sendResponse("Nhập từ bạn đoán:");
-            String guess = in.readLine();
-            // Handle checking the guess (compare it with the correct word, etc.)
-            boolean isCorrect = checkGuess(guess);
-            if (isCorrect) {
-                sendResponse("Chúc mừng! Bạn đoán đúng từ.");
-                // Handle game end or scoring logic
-            } else {
-                sendResponse("Sai rồi. Hãy thử lại!");
-            }
-        }
+//        private void handleSendHint() throws IOException {
+//            sendResponse("Nhập gợi ý của bạn:");
+//            String hint = in.readLine();
+//            // Handle sending the hint (save it, broadcast it to other players, etc.)
+//            sendResponse("Gợi ý của bạn đã được gửi: " + hint);
+//        }
+//
+//        private void handleSendGuess() throws IOException {
+//            sendResponse("Nhập từ bạn đoán:");
+//            String guess = in.readLine();
+//            // Handle checking the guess (compare it with the correct word, etc.)
+//            boolean isCorrect = checkGuess(guess);
+//            if (isCorrect) {
+//                sendResponse("Chúc mừng! Bạn đoán đúng từ.");
+//                // Handle game end or scoring logic
+//            } else {
+//                sendResponse("Sai rồi. Hãy thử lại!");
+//            }
+//        }
 
         private boolean checkGuess(String guess) {
             // Check if the guess matches the word in the room (or game)
@@ -351,7 +351,6 @@ public class Server {
                 return;
             }
 
-            // Kiểm tra xem người dùng đã ở trong phòng nào chưa
             Room currentRoom = getCurrentRoomOfUser (currentUser .getUsername());
             if (currentRoom != null) {
                 sendResponse("Bạn đã ở trong phòng " + currentRoom.getRoomName() + ". Vui lòng rời phòng này trước khi tham gia phòng khác.");
@@ -362,23 +361,89 @@ public class Server {
             if (room == null) {
                 sendResponse("Không tìm thấy phòng.");
             } else {
+                currentUser.setRoomName(roomName);
                 room.addUser (currentUser .getUsername());
                 sendResponse("Bạn đã tham gia phòng " + roomName + " thành công.");
+                sendGameMenu();
 
-                // Kiểm tra số lượng người chơi trong phòng
+                // Notify all players that the game is starting
                 if (room.getPlayers().size() >= GameConstants.START_MEMBERS) {
                     notifyRoomStart(room);
                 }
                 inGameMenu = true;
-                // Hiển thị menu game sau khi tham gia phòng
-                sendGameMenu();
             }
         }
 
+        private void handleSendHint() throws IOException {
+            if (currentUser  == null) {
+                sendResponse("Bạn chưa đăng nhập.");
+                return;
+            }
+
+            String roomName = currentUser .getRoomName();
+            if (roomName == null || roomName.isEmpty()) {
+                sendResponse("Bạn không ở trong phòng nào.");
+                return;
+            }
+
+            Room currentRoom = getRoomByName(roomName);
+
+            if (currentRoom == null) {
+                sendResponse("Phòng không tồn tại.");
+                return;
+            }
+
+            if (!currentUser .getUsername().equals(currentRoom.getGuesser())) {
+                sendResponse("Chỉ người đố từ mới có thể gửi gợi ý.");
+                return;
+            }
+
+            sendResponse("Nhập gợi ý của bạn:");
+            String hint = in.readLine();
+
+            // Send the hint to the room
+            sendResponseToRoom(currentRoom.getRoomName(), "Gợi ý: " + hint);
+        }
+
+        private void handleSendGuess() throws IOException {
+            sendResponse("Nhập từ bạn đoán:");
+            String guess = in.readLine();
+            Room currentRoom = getCurrentRoomOfUser (currentUser .getUsername());
+//            sendResponse(currentUser.toString());
+//            sendResponse(currentRoom.getGuesser().toString());
+            // Check if the current user is the guesser
+            if (currentUser.getUsername() .equals(currentRoom.getGuesser())) {
+
+                sendResponse("Bạn là người đố từ, không thể đoán từ của chính mình.");
+                return;
+            }
+
+            boolean isCorrect = checkGuess(guess, currentRoom.getWordToGuess());
+            if (isCorrect) {
+                sendResponseToRoom(currentRoom.getRoomName(), currentUser .getUsername() + " đã đoán đúng từ!");
+                // Handle game end or scoring logic
+            } else {
+                sendResponseToRoom(currentRoom.getRoomName(), currentUser .getUsername() + " đã đoán sai. Hãy thử lại!");
+            }
+        }
+
+        private boolean checkGuess(String guess, String wordToGuess) {
+            return wordToGuess.equalsIgnoreCase(guess);
+        }
+
+        private void sendResponseToRoom(String roomName, String message) {
+            Room room = getRoomByName(roomName);
+            for (String player : room.getPlayers()) {
+                sendResponseToUser (player, message);
+            }
+        }
         private void notifyRoomStart(Room room) {
             String message = "Phòng " + room.getRoomName() + " đã đủ số lượng người chơi. Bắt đầu chơi!";
             for (String player : room.getPlayers()) {
-                sendResponseToUser(player, message);
+                sendResponseToUser (player, message);
+                if (player.equals(room.getGuesser())) {
+                    sendResponseToUser (player, "Bạn là người đố từ. Từ của bạn là: " + room.getWordToGuess());
+                }
             }
         }
 
