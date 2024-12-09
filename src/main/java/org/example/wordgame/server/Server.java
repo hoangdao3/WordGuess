@@ -162,37 +162,13 @@ public class Server {
             }
         }
 
-//        private void handleSendHint() throws IOException {
-//            sendResponse("Nhập gợi ý của bạn:");
-//            String hint = in.readLine();
-//            // Handle sending the hint (save it, broadcast it to other players, etc.)
-//            sendResponse("Gợi ý của bạn đã được gửi: " + hint);
-//        }
-//
-//        private void handleSendGuess() throws IOException {
-//            sendResponse("Nhập từ bạn đoán:");
-//            String guess = in.readLine();
-//            // Handle checking the guess (compare it with the correct word, etc.)
-//            boolean isCorrect = checkGuess(guess);
-//            if (isCorrect) {
-//                sendResponse("Chúc mừng! Bạn đoán đúng từ.");
-//                // Handle game end or scoring logic
-//            } else {
-//                sendResponse("Sai rồi. Hãy thử lại!");
-//            }
-//        }
-
         private boolean checkGuess(String guess) {
-            // Check if the guess matches the word in the room (or game)
-            // You can implement game-specific logic here
-            // For now, assume the word to guess is "example"
             return "example".equalsIgnoreCase(guess);
         }
 
         private void handleSendImageHint() throws IOException {
             sendResponse("Nhập đường dẫn đến hình ảnh gợi ý:");
             String imagePath = in.readLine();
-            // Handle sending the image (you could send the image file path, validate it, etc.)
             sendResponse("Hình ảnh gợi ý đã được gửi: " + imagePath);
         }
 
@@ -251,7 +227,6 @@ public class Server {
                 stmt.setString(2, password);
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
-//                    currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
                     currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"), socket);
                     loggedInUsers.put(username, currentUser );
                     sendResponse("Đăng nhập thành công. Xin chào, " + username + "!");
@@ -302,11 +277,9 @@ public class Server {
                 return;
             }
 
-            // Xóa người dùng khỏi danh sách người chơi của phòng
             currentRoom.removeUser (currentUser .getUsername());
             sendResponse("Bạn đã rời khỏi phòng " + currentRoom.getRoomName() + ".");
 
-            // Hiển thị lại menu phòng
             sendRoomMenu();
         }
 
@@ -316,7 +289,7 @@ public class Server {
                     return room;
                 }
             }
-            return null; // Người dùng không ở trong phòng nào
+            return null;
         }
 
         private void handleCreateRoomProcess() throws IOException {
@@ -366,7 +339,6 @@ public class Server {
                 sendResponse("Bạn đã tham gia phòng " + roomName + " thành công.");
                 sendGameMenu();
 
-                // Notify all players that the game is starting
                 if (room.getPlayers().size() >= GameConstants.START_MEMBERS) {
                     notifyRoomStart(room);
                 }
@@ -409,9 +381,6 @@ public class Server {
             sendResponse("Nhập từ bạn đoán:");
             String guess = in.readLine();
             Room currentRoom = getCurrentRoomOfUser (currentUser .getUsername());
-//            sendResponse(currentUser.toString());
-//            sendResponse(currentRoom.getGuesser().toString());
-            // Check if the current user is the guesser
             if (currentUser.getUsername() .equals(currentRoom.getGuesser())) {
 
                 sendResponse("Bạn là người đố từ, không thể đoán từ của chính mình.");
@@ -421,7 +390,6 @@ public class Server {
             boolean isCorrect = checkGuess(guess, currentRoom.getWordToGuess());
             if (isCorrect) {
                 sendResponseToRoom(currentRoom.getRoomName(), currentUser .getUsername() + " đã đoán đúng từ!");
-                // Handle game end or scoring logic
             } else {
                 sendResponseToRoom(currentRoom.getRoomName(), currentUser .getUsername() + " đã đoán sai. Hãy thử lại!");
             }
@@ -448,7 +416,6 @@ public class Server {
         }
 
         private void sendResponseToUser (String username, String message) {
-            // Tìm kiếm người dùng trong danh sách đã đăng nhập và gửi thông điệp
             User user = loggedInUsers.get(username);
             if (user != null) {
                 try {
