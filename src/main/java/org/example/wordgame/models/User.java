@@ -5,11 +5,20 @@ public class User {
     private String password;
     private int points;
 
+    public User(String username) {
+        this.username = username;
+    }
+
     public User(int id, String username, String password, int points) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.points = points;
+    }
+
+    public User(String username, String password) {
+        this.username = username;
+        this.password = password;
     }
 
     public User(int id, String username, String password) {

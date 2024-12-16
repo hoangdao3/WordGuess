@@ -37,7 +37,7 @@ public class Server {
             this.socket = socket;
             this.out = new PrintWriter(socket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            sendInitialInstructions();
+//            sendInitialInstructions();
         }
 
         public void run() {
@@ -45,7 +45,7 @@ public class Server {
                 String message;
                 while ((message = in.readLine()) != null) {
                     String[] command = message.split(" ");
-
+                    System.out.println(message);
                     if (command.length < 1) {
                         sendResponse("Invalid command format.");
                         continue;
@@ -110,30 +110,30 @@ public class Server {
         }
 
         private void sendInitialInstructions() {
-            sendResponse("Dang ki tai khoan: REGISTER <username> <password>");
-            sendResponse("Dang nhap: LOGIN <username> <password>");
-            sendResponse("Dang xuat: LOGOUT <user_id>");
-            sendResponse("Doi mat khau: CHANGE_PASSWORD <username> <old_password> <new_password>");
+            sendResponse("Register: REGISTER <username> <password>");
+            sendResponse("Login: LOGIN <username> <password>");
+            sendResponse("Logout: LOGOUT <username>");
+            sendResponse("Change Password: CHANGE_PASSWORD <username> <old_password> <new_password>");
         }
 
         private void sendRoomInstructions() {
-            sendResponse("Danh sach phong: LIST_ROOM <username>");
-            sendResponse("Tao phong: CREATE_ROOM <username> <room_name>");
-            sendResponse("Tham gia phong: JOIN_ROOM <username> <room_name>");
-            sendResponse("Roi khoi phong: LEAVE_ROOM <user_name>");
+            sendResponse("List Rooms: LIST_ROOM <username>");
+            sendResponse("Create Room: CREATE_ROOM <username> <room_name>");
+            sendResponse("Join Room: JOIN_ROOM <username> <room_name>");
+            sendResponse("Leave Room: LEAVE_ROOM <username>");
         }
 
         private void sendGameplayInstructions() {
-            sendResponse("Gui goi y: SEND_HINT \"hint\"");
-            sendResponse("Nhan goi y: RECEIVE_HINT_TEXT \"hint\"");
-            sendResponse("Nhan goi y la hinh anh: RECEIVE_HINT_IMAGE <image_path>");
-            sendResponse("Doan tu: SEND_WORD \"word\"");
-            sendResponse("Kiem tra diem: MY_POINTS <user_name>");
+            sendResponse("Send Hint: SEND_HINT \"hint\"");
+            sendResponse("Receive Hint Text: RECEIVE_HINT_TEXT \"hint\"");
+            sendResponse("Receive Hint Image: RECEIVE_HINT_IMAGE <image_path>");
+            sendResponse("Send Word: SEND_WORD \"word\"");
+            sendResponse("Check Points: MY_POINTS <username>");
         }
 
         private void sendResponse(String response) {
             out.println(response);
-            System.out.println("Server response: " + response);
+            System.out.println(response);
         }
 
         private void handleRegister(String username, String[] command) {
@@ -143,15 +143,14 @@ public class Server {
             }
             String password = command[2];
 
-            try
-                    (Connection conn = DatabaseConnectionPool.getConnection();
-            PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
+            try (Connection conn = DatabaseConnectionPool.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password) VALUES (?, ?)")) {
                 stmt.setString(1, username);
                 stmt.setString(2, password);
                 stmt.executeUpdate();
                 sendResponse("Registration successful.");
             } catch (SQLException e) {
-                sendResponse("Username already exists.");
+                sendResponse ("Registration failed: " + e.getMessage());
             }
         }
 
@@ -169,27 +168,24 @@ public class Server {
                 ResultSet rs = stmt.executeQuery();
 
                 if (rs.next()) {
-                    currentUser  = new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
+                    currentUser  = new User(username);
                     loggedInUsers.put(username, currentUser );
-                    sendResponse("Login successful. Welcome, " + username + "!");
-                    sendRoomInstructions();
+                    sendResponse("Login successful.");
+//                    sendRoomInstructions(); // Send room instructions after login
                 } else {
                     sendResponse("Invalid username or password.");
                 }
             } catch (SQLException e) {
-                sendResponse("Database error.");
+                sendResponse("Login failed: " + e.getMessage());
             }
         }
 
         private void handleLogout(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
+            if (loggedInUsers.remove(username) != null) {
+                sendResponse("Logout successful.");
+            } else {
+                sendResponse("User  not logged in.");
             }
-
-            loggedInUsers.remove(username);
-            sendResponse("User  " + username + " logged out.");
-            sendInitialInstructions();
         }
 
         private void handleChangePassword(String username, String[] command) {
@@ -200,166 +196,89 @@ public class Server {
             String oldPassword = command[2];
             String newPassword = command[3];
 
-            if (newPassword.equals(oldPassword)) {
-                sendResponse("New password cannot be the same as the old password.");
-                return;
-            }
-
             try (Connection conn = DatabaseConnectionPool.getConnection();
-                 PreparedStatement checkStmt = conn.prepareStatement("SELECT * FROM users WHERE username = ? AND password = ?");
-                 PreparedStatement updateStmt = conn.prepareStatement("UPDATE users SET password = ? WHERE username = ?")) {
+                 PreparedStatement stmt = conn.prepareStatement("UPDATE users SET password = ? WHERE username = ? AND password = ?")) {
+                stmt.setString(1, newPassword);
+                stmt.setString(2, username);
+                stmt.setString(3, oldPassword);
+                int rowsUpdated = stmt.executeUpdate();
 
-                checkStmt.setString(1, username);
-                checkStmt.setString(2, oldPassword);
-                ResultSet rs = checkStmt.executeQuery();
-
-                if (rs.next()) {
-                    updateStmt.setString(1, newPassword);
-                    updateStmt.setString(2, username);
-                    updateStmt.executeUpdate();
+                if (rowsUpdated > 0) {
                     sendResponse("Password changed successfully.");
                 } else {
-                    sendResponse("Incorrect old password.");
+                    sendResponse("Old password is incorrect.");
                 }
             } catch (SQLException e) {
-                sendResponse("Database error.");
+                sendResponse("Change password failed: " + e.getMessage());
             }
         }
 
         private void handleListRooms(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
-
-            if (rooms.isEmpty()) {
-                sendResponse("No rooms available.");
-            } else {
-                StringBuilder response = new StringBuilder("Available rooms:");
-                for (Room room : rooms) {
-                    response.append(" ").append(room.getRoomName()).append(",");
-                }
-                sendResponse(response.toString());
-            }
+            // Implementation for listing rooms
+            sendResponse("List of rooms: " + rooms.toString());
         }
 
         private void handleCreateRoom(String username, String[] command) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
+            if (command.length != 3) {
+                sendResponse("Invalid CREATE_ROOM command.");
                 return;
             }
-
-            if (rooms.size() >= GameConstants.MAX_ROOMS) {
-                sendResponse("Maximum number of rooms reached.");
-                return;
-            }
-
             String roomName = command[2];
-            if (roomExists(roomName)) {
-                sendResponse("Room with this name already exists.");
-                return;
-            }
-
-            Room newRoom = new Room(rooms.size() + 1, roomName);
+            Room newRoom = new Room(roomName);
             rooms.add(newRoom);
-            sendResponse("Room created successfully by " + username);
-        }
-
-        private void handleLeaveRoom(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
-
-            if (currentRoom == null) {
-                sendResponse("You are not in any room.");
-                return;
-            }
-
-            sendResponse("User  " + username + " left the room " + currentRoom.getRoomName() + ".");
-            currentRoom = null;
-            sendRoomInstructions();
+            sendResponse("Room '" + roomName + "' created successfully.");
         }
 
         private void handleJoinRoom(String username, String[] command) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
+            if (command.length != 3) {
+                sendResponse("Invalid JOIN_ROOM command.");
                 return;
             }
-
-            if (currentRoom != null) {
-                sendResponse("You are already in room " + currentRoom.getRoomName() + ". Please leave the current room before joining a new one.");
-                return;
-            }
-
             String roomName = command[2];
-            Room room = getRoomByName(roomName);
-            if (room == null) {
-                sendResponse("Room not found.");
-                return;
+            for (Room room : rooms) {
+                if (room.getRoomName().equals(roomName)) {
+                    currentRoom = room;
+                    sendResponse("You have joined the room: " + roomName);
+//                    sendGameplayInstructions(); // Send gameplay instructions after joining a room
+                    return;
+                }
             }
+            sendResponse("Room '" + roomName + "' does not exist.");
+        }
 
-            currentRoom = room;
-            sendResponse("User  " + username + " successfully joined room " + roomName + ".");
-            sendGameplayInstructions();
+        private void handleLeaveRoom(String username) {
+            if (currentRoom != null) {
+                currentRoom.removeUser (currentUser );
+                sendResponse("You have left the room: " + currentRoom.getName());
+                currentRoom = null;
+            } else {
+                sendResponse("You are not in any room.");
+            }
         }
 
         private void handleSendHint(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid SEND_HINT command.");
-                return;
-            }
-            String hint = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-            sendResponse("Hint sent: " + hint);
+            // Implementation for sending hints
+            sendResponse("Hint sent: " + String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
         }
 
         private void handleReceiveHintText(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid RECEIVE_HINT_TEXT command.");
-                return;
-            }
-            String hintText = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-            sendResponse("Received hint text: " + hintText);
+            // Implementation for receiving hint text
+            sendResponse("Received hint text: " + String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
         }
 
         private void handleReceiveHintImage(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid RECEIVE_HINT_IMAGE command.");
-                return;
-            }
-            String imagePath = command[1];
-            sendResponse("Received hint image from: " + imagePath);
+            // Implementation for receiving hint image
+            sendResponse("Received hint image: " + command[1]);
         }
 
         private void handleSendWord(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid SEND_WORD command.");
-                return;
-            }
-            String word = command[1];
-            sendResponse("Word sent: " + word);
+            // Implementation for sending words
+            sendResponse("Word sent: " + String.join(" ", Arrays.copyOfRange(command, 1, command.length)));
         }
 
         private void handleMyPoints(String username) {
-            if (!loggedInUsers.containsKey(username)) {
-                sendResponse("You must log in first.");
-                return;
-            }
-            int points = currentUser .getPoints();
-            sendResponse("Your points: " + points);
-        }
-
-        private boolean roomExists(String roomName) {
-            return getRoomByName(roomName) != null;
-        }
-
-        private Room getRoomByName(String roomName) {
-            for (Room room : rooms) {
-                if (room.getRoomName().equals(roomName)) {
-                    return room;
-                }
-            }
-            return null;
+            // Implementation for checking points
+            sendResponse("Your points: 100"); // Example response
         }
     }
 }
