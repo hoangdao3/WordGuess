@@ -373,7 +373,6 @@ public class Server {
             sendResponse("Nhập gợi ý của bạn:");
             String hint = in.readLine();
 
-            // Send the hint to the room
             sendResponseToRoom(currentRoom.getRoomName(), "Gợi ý: " + hint);
         }
 
@@ -420,7 +419,7 @@ public class Server {
             if (user != null) {
                 try {
                     PrintWriter userOut = new PrintWriter(user.getSocket().getOutputStream(), true);
-                    userOut.println(message); // Gửi thông điệp đến người dùng
+                    userOut.println(message);
                     System.out.println("Gửi thông điệp đến " + username + ": " + message);
                 } catch (IOException e) {
                     System.out.println("Không thể gửi thông điệp đến " + username + ": " + e.getMessage());
