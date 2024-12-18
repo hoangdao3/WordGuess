@@ -1,19 +1,21 @@
 package org.example.wordgame.models;
+import org.example.wordgame.constant.GameConstants;
 public class User {
     private int id;
     private String username;
     private String password;
-    private int points;
+    private int score;
 
     public User(String username) {
         this.username = username;
+        this.score = GameConstants.INIT_PLAYER_POINTS;;
     }
 
     public User(int id, String username, String password, int points) {
         this.id = id;
         this.username = username;
         this.password = password;
-        this.points = points;
+        this.score = points;
     }
 
     public User(String username, String password) {
@@ -55,11 +57,18 @@ public class User {
         this.password = password;
     }
 
-    public int getPoints() {
-        return points;
+    public int getScore() {
+        return score;
     }
 
-    public void setPoints(int points) {
-        this.points = points;
+    public void setScore(int score) {
+        this.score = score;
+    }
+    public void addScore(int points) {
+        this.score += points;
+    }
+
+    public void subtractScore(int points) {
+        this.score -= points;
     }
 }
