@@ -5,10 +5,20 @@ public class User {
     private String username;
     private String password;
     private int score;
+    private boolean hasGuessed;
+
+    public boolean isHasGuessed() {
+        return hasGuessed;
+    }
+
+    public void setHasGuessed(boolean hasGuessed) {
+        this.hasGuessed = hasGuessed;
+    }
 
     public User(String username) {
         this.username = username;
         this.score = GameConstants.INIT_PLAYER_POINTS;;
+        this.hasGuessed = false;
     }
 
     public User(int id, String username, String password, int points) {

@@ -1,12 +1,11 @@
 package org.example.wordgame.models;
 
+import org.example.wordgame.constant.GameConstants;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 public class Room {
     private String roomName;
@@ -17,7 +16,7 @@ public class Room {
     private User currentHinter; // Track the current hinter
     private String currentWord; // Track the current word to be guessed
     private Timer timer; // Timer for the game
-    private static final int END_TIMES = 60; // Duration of the game in seconds
+    private static final int END_TIMES = GameConstants.END_TIMES; // Duration of the game in seconds
     public User getFirstPlayer() {
         return players.isEmpty() ? null : players.get(0);
     }
@@ -27,7 +26,36 @@ public class Room {
         this.gameStarted = false;
         this.clientSockets = new ArrayList<>();
     }
+    private void endGame() {
+        // Notify all players of the end of the game
+        sendMessageToAll("Time's up! The game has ended.");
 
+        // Determine the winner
+        User winner = null;
+        int highestScore = Integer.MIN_VALUE;
+
+        for (User  player : players) {
+            if (player.getScore() > highestScore) {
+                highestScore = player.getScore();
+                winner = player;
+            }
+        }
+
+        if (winner != null) {
+            sendMessageToAll("The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
+        } else {
+            sendMessageToAll("No winner this time!");
+        }
+
+        // Clean up the room or reset the game as needed
+        resetGame();
+    }
+
+    public User selectNextHinter(User currentHinter) {
+        int currentIndex = players.indexOf(currentHinter);
+        // Lấy người chơi tiếp theo trong danh sách, quay lại đầu nếu đã đến cuối
+        return players.get((currentIndex + 1) % players.size());
+    }
     public String getRoomName() {
         return roomName;
     }
@@ -67,30 +95,6 @@ public class Room {
         }, END_TIMES * 1000); // Convert seconds to milliseconds
     }
 
-    private void endGame() {
-        // Notify all players of the end of the game
-        sendMessageToAll("Time's up! The game has ended.");
-
-        // Determine the winner
-        User winner = null;
-        int highestScore = Integer.MIN_VALUE;
-
-        for (User  player : players) {
-            if (player.getScore() > highestScore) {
-                highestScore = player.getScore();
-                winner = player;
-            }
-        }
-
-        if (winner != null) {
-            sendMessageToAll("The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
-        } else {
-            sendMessageToAll("No winner this time!");
-        }
-
-        // Clean up the room or reset the game as needed
-        resetGame();
-    }
 
     private void resetGame() {
         // Reset game state if needed
@@ -132,7 +136,56 @@ public class Room {
     public void setCurrentGuesser(User currentGuesser) {
         this.currentGuesser = currentGuesser;
     }
-
+//    private void endGame() {
+//        // Notify all players of the end of the game
+//        sendMessageToAll("Time's up! The game has ended.");
+//
+//        // Determine the winner
+//        User winner = null;
+//        int highestScore = Integer.MIN_VALUE;
+//
+//        for (User  player : players) {
+//            if (player.getScore() > highestScore) {
+//                highestScore = player.getScore();
+//                winner = player;
+//            }
+//        }
+//
+//        if (winner != null) {
+//            sendMessageToAll("The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
+//        } else {
+//            sendMessageToAll("No winner this time!");
+//        }
+//
+//        // Clean up the room or reset the game as needed
+//        resetGame();
+//
+//        // Check if the room is empty after the game ends
+//        if (players.isEmpty()) {
+//            // Logic to remove the room can be handled in the ClientHandler or in the Server class
+//            // For now, we can just notify that the room is empty
+//            sendMessageToAll("The room has been removed as it is empty.");
+//        }
+//    }
+    public boolean allPlayersGuessed() {
+        for (User  player : players) {
+            if (!player.isHasGuessed()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    public User selectNextGuesser() {
+        int currentIndex = players.indexOf(currentGuesser);
+        // Get the next player in line, wrap around if at the end of the list
+        int nextIndex = (currentIndex + 1) % players.size();
+        return players.get(nextIndex);
+    }
+    public User selectNewHinter() {
+        // Select a new hinter randomly from the players
+        Random random = new Random();
+        return players.get(random.nextInt(players.size()));
+    }
     public User getCurrentHinter() {
         return currentHinter;
     }
