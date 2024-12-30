@@ -20,7 +20,6 @@ public class DatabaseConnectionPool {
         dataSource = new HikariDataSource(config);
     }
 
-    // Lấy kết nối từ pool
     public static Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }

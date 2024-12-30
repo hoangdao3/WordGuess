@@ -6,6 +6,15 @@ public class User {
     private String password;
     private int score;
     private boolean hasGuessed;
+    private boolean guessedCorrectly;
+
+    public boolean isGuessedCorrectly() {
+        return guessedCorrectly;
+    }
+
+    public void setGuessedCorrectly(boolean guessedCorrectly) {
+        this.guessedCorrectly = guessedCorrectly;
+    }
 
     public boolean isHasGuessed() {
         return hasGuessed;

@@ -12,11 +12,11 @@ public class Room {
     private List<User> players;
     private boolean gameStarted;
     private List<Socket> clientSockets;
-    private User currentGuesser; // Track the current guesser
-    private User currentHinter; // Track the current hinter
-    private String currentWord; // Track the current word to be guessed
-    private Timer timer; // Timer for the game
-    private static final int END_TIMES = GameConstants.END_TIMES; // Duration of the game in seconds
+    private User currentGuesser;
+    private User currentHinter;
+    private String currentWord;
+    private Timer timer;
+    private static final int END_TIMES = GameConstants.END_TIMES;
     public User getFirstPlayer() {
         return players.isEmpty() ? null : players.get(0);
     }
@@ -27,10 +27,7 @@ public class Room {
         this.clientSockets = new ArrayList<>();
     }
     private void endGame() {
-        // Notify all players of the end of the game
-        sendMessageToAll("Time's up! The game has ended.");
-
-        // Determine the winner
+        sendMessageToAll("END_GAME_SUCCESS Time's up! The game has ended.");
         User winner = null;
         int highestScore = Integer.MIN_VALUE;
 
@@ -42,18 +39,16 @@ public class Room {
         }
 
         if (winner != null) {
-            sendMessageToAll("The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
+            sendMessageToAll("END_GAME_SUCCESS The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
         } else {
             sendMessageToAll("No winner this time!");
         }
 
-        // Clean up the room or reset the game as needed
         resetGame();
     }
 
     public User selectNextHinter(User currentHinter) {
         int currentIndex = players.indexOf(currentHinter);
-        // Lấy người chơi tiếp theo trong danh sách, quay lại đầu nếu đã đến cuối
         return players.get((currentIndex + 1) % players.size());
     }
     public String getRoomName() {
@@ -82,7 +77,7 @@ public class Room {
 
     public void startGame() {
         gameStarted = true;
-        startTimer(); // Start the timer when the game starts
+        startTimer();
     }
 
     private void startTimer() {
@@ -92,17 +87,15 @@ public class Room {
             public void run() {
                 endGame();
             }
-        }, END_TIMES * 1000); // Convert seconds to milliseconds
+        }, END_TIMES * 1000); // seconds to milliseconds
     }
 
 
     private void resetGame() {
-        // Reset game state if needed
         gameStarted = false;
         currentWord = null;
-        // Additional reset logic can be added here
         if (timer != null) {
-            timer.cancel(); // Cancel the timer
+            timer.cancel();
         }
     }
 
@@ -122,7 +115,9 @@ public class Room {
         for (Socket socket : clientSockets) {
             try {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                System.out.println("Sent: " + message);
                 out.println(message);
+
             } catch (IOException e) {
                 System.err.println("Error sending message to client: " + e.getMessage());
             }
@@ -136,37 +131,7 @@ public class Room {
     public void setCurrentGuesser(User currentGuesser) {
         this.currentGuesser = currentGuesser;
     }
-//    private void endGame() {
-//        // Notify all players of the end of the game
-//        sendMessageToAll("Time's up! The game has ended.");
-//
-//        // Determine the winner
-//        User winner = null;
-//        int highestScore = Integer.MIN_VALUE;
-//
-//        for (User  player : players) {
-//            if (player.getScore() > highestScore) {
-//                highestScore = player.getScore();
-//                winner = player;
-//            }
-//        }
-//
-//        if (winner != null) {
-//            sendMessageToAll("The winner is " + winner.getUsername() + " with a score of " + highestScore + "!");
-//        } else {
-//            sendMessageToAll("No winner this time!");
-//        }
-//
-//        // Clean up the room or reset the game as needed
-//        resetGame();
-//
-//        // Check if the room is empty after the game ends
-//        if (players.isEmpty()) {
-//            // Logic to remove the room can be handled in the ClientHandler or in the Server class
-//            // For now, we can just notify that the room is empty
-//            sendMessageToAll("The room has been removed as it is empty.");
-//        }
-//    }
+
     public boolean allPlayersGuessed() {
         for (User  player : players) {
             if (!player.isHasGuessed()) {
@@ -177,12 +142,10 @@ public class Room {
     }
     public User selectNextGuesser() {
         int currentIndex = players.indexOf(currentGuesser);
-        // Get the next player in line, wrap around if at the end of the list
         int nextIndex = (currentIndex + 1) % players.size();
         return players.get(nextIndex);
     }
     public User selectNewHinter() {
-        // Select a new hinter randomly from the players
         Random random = new Random();
         return players.get(random.nextInt(players.size()));
     }

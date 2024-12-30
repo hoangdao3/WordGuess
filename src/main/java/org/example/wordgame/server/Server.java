@@ -12,7 +12,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Server {
-    private static final int PORT = 12345;
+    private static final int PORT = 31457;
     private static final List<Room> rooms = new ArrayList<>();
     private static final Map<String, User> loggedInUsers = new ConcurrentHashMap<>();
     private static final Map<User, ClientHandler> clientHandlers = new ConcurrentHashMap<>();
@@ -115,7 +115,7 @@ public class Server {
                     case "GUESS_WORD":
                         handleGuessWord(command);
                         break;
-                    case "CHECK_SCORE":
+                    case "MY_POINTS":
                         handleCheckScore();
                         break;
                     default:
@@ -136,14 +136,12 @@ public class Server {
             String oldPassword = command[2];
             String newPassword = command[3];
 
-            // Kiểm tra xem mật khẩu cũ và mới có trùng nhau không
             if (oldPassword.equals(newPassword)) {
                 sendResponse("CHANGE_PASSWORD_FAILURE New password cannot be the same as the old password.");
                 return;
             }
 
             try (Connection conn = DatabaseConnectionPool.getConnection()) {
-                // Kiểm tra tên người dùng và mật khẩu cũ
                 PreparedStatement checkStmt = conn.prepareStatement(
                         "SELECT * FROM users WHERE username = ? AND password = ?"
                 );
@@ -156,7 +154,6 @@ public class Server {
                     return;
                 }
 
-                // Cập nhật mật khẩu mới
                 PreparedStatement updateStmt = conn.prepareStatement(
                         "UPDATE users SET password = ? WHERE username = ?"
                 );
@@ -165,7 +162,7 @@ public class Server {
 
                 int rowsAffected = updateStmt.executeUpdate();
                 if (rowsAffected > 0) {
-                    sendResponse("CHANGE_PASSWORD_SUCCESS Password changed successfully for user: " + username);
+                    sendResponse("CHANGE_PASSWORD_SUCCESS");
                 } else {
                     sendResponse("CHANGE_PASSWORD_FAILURE Failed to change password.");
                 }
@@ -185,7 +182,6 @@ public class Server {
             String password = command[2];
 
             try (Connection conn = DatabaseConnectionPool.getConnection()) {
-                // Kiểm tra xem tên người dùng đã tồn tại hay chưa
                 String checkUsernameQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(checkUsernameQuery)) {
                     stmt.setString(1, username);
@@ -197,7 +193,6 @@ public class Server {
                     }
                 }
 
-                // Nếu tên người dùng chưa tồn tại, chèn thông tin người dùng mới vào cơ sở dữ liệu
                 String insertQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
                     stmt.setString(1, username);
@@ -227,10 +222,8 @@ public class Server {
                     stmt.setString(1, username);
                     try (ResultSet rs = stmt.executeQuery()) {
                         if (rs.next()) {
-                            // Tên người dùng tồn tại, kiểm tra mật khẩu
                             String storedPassword = rs.getString("password");
                             if (storedPassword.equals(password)) {
-                                // Mật khẩu đúng, đăng nhập thành công
                                 currentUser = new User(username);
                                 loggedInUsers.put(username, currentUser);
                                 clientHandlers.put(currentUser, this);
@@ -250,17 +243,20 @@ public class Server {
 
 
         private void handleLogout() {
-            if (currentUser   != null) {
-                loggedInUsers.remove(currentUser  .getUsername());
+            if (currentUser != null) {
+                loggedInUsers.remove(currentUser.getUsername());
+
                 if (currentRoom != null) {
-                    currentRoom.removePlayer(currentUser  );
+                    currentRoom.removePlayer(currentUser);
                     currentRoom.removeClient(socket);
                 }
-                currentUser   = null;
+
+                currentUser = null;
                 currentRoom = null;
-                sendResponse("Logout successful");
+
+                sendResponse("LOGOUT_SUCCESS");
             } else {
-                sendResponse("User  not logged in");
+                sendResponse("LOGIN_FAILURE User not logged in");
             }
         }
 
@@ -277,8 +273,18 @@ public class Server {
         }
 
         private void handleCreateRoom(String[] command) {
+            if (currentUser == null) {
+                sendResponse("CREATE_ROOM_FAILURE You need to be logged in to create a room.");
+                return;
+            }
+
+            if (rooms.size() >= GameConstants.MAX_ROOMS) {
+                sendResponse("CREATE_ROOM_FAILURE Maximum room limit reached.");
+                return;
+            }
+
             if (command.length != 2) {
-                sendResponse("Invalid CREATE_ROOM command. Use: CREATE_ROOM <room_name>");
+                sendResponse("CREATE_ROOM_FAILURE Invalid CREATE_ROOM command. ");
                 return;
             }
 
@@ -286,57 +292,62 @@ public class Server {
 
             for (Room room : rooms) {
                 if (room.getRoomName().equalsIgnoreCase(roomName)) {
-                    sendResponse("Room '" + roomName + "' already exists. Please choose a different name.");
+                    sendResponse("CREATE_ROOM_FAILURE Room '" + roomName + "' already exists.");
                     return;
                 }
             }
 
             Room newRoom = new Room(roomName);
             rooms.add(newRoom);
-            sendResponse("Room '" + roomName + "' created successfully.");
+            sendResponse("CREATE_ROOM_SUCCESS Room '" + roomName + "' created successfully.");
         }
 
+
         private void handleJoinRoom(String[] command) {
+            if (currentUser == null) {
+                sendResponse("JOIN_ROOM_FAILURE You need to be logged in to join a room.");
+                return;
+            }
+
             if (command.length != 2) {
-                sendResponse("Invalid JOIN_ROOM command. Use: JOIN_ROOM <room_name>");
+                sendResponse("JOIN_ROOM_FAILURE Invalid JOIN_ROOM command.");
                 return;
             }
 
             String roomName = command[1];
-
+            currentUser.setScore(GameConstants.INIT_PLAYER_POINTS);
             for (Room room : rooms) {
-                if (room.getRoomName().equalsIgnoreCase(roomName)) {
-                    currentRoom = room;
-                    currentRoom.addUser (currentUser  );
-                    currentRoom.addClient(socket);
-                    sendResponse("Joined room: " + roomName);
 
-                    // Check if the game can start
+                if (room.getRoomName().equalsIgnoreCase(roomName)) {
+                    if (room.getCurrentPlayers() >= GameConstants.MAX_MEMBERS) {
+                        sendResponse("JOIN_ROOM_FAILURE Room is full. You cannot join.");
+                        return;
+                    }
+                    currentRoom = room;
+                    currentRoom.addUser(currentUser);
+                    currentRoom.addClient(socket);
+                    sendResponse("JOIN_ROOM_SUCCESS Joined room: " + roomName);
+
                     if (currentRoom.getCurrentPlayers() >= GameConstants.START_MEMBERS && !currentRoom.isGameStarted()) {
                         currentRoom.startGame();
                         User firstPlayer = currentRoom.getFirstPlayer();
-                        currentRoom.setCurrentHinter(firstPlayer); // Set the first player as the hinter
+                        currentRoom.setCurrentHinter(firstPlayer);
 
-                        // Randomly select a word from the GUESS_WORDS list
                         Random random = new Random();
                         String randomWord = GameConstants.GUESS_WORDS.get(random.nextInt(GameConstants.GUESS_WORDS.size()));
-                        currentRoom.setCurrentWord(randomWord); // Set the current word
+                        currentRoom.setCurrentWord(randomWord);
 
-                        // Notify all clients in the room
-                        currentRoom.sendMessageToAll("The game is starting! " + firstPlayer.getUsername() + " is the hinter. Everyone else is a guesser. The word to guess has been set.");
-
-                        // Notify the first player using the ClientHandler
+                        currentRoom.sendMessageToAll("START GAME! " + firstPlayer.getUsername() + " is the hinter.");
                         ClientHandler firstPlayerHandler = clientHandlers.get(firstPlayer);
                         if (firstPlayerHandler != null) {
-                            firstPlayerHandler.sendResponse("You are the hinter! The word to guess is: " + randomWord);
+                            firstPlayerHandler.sendResponse("NOTIFICATION_ROLE_SUCCESS You are the hinter! The word to guess is: " + randomWord);
                         }
 
-                        // Notify other players
-                        for (User  player : currentRoom.getPlayers()) {
+                        for (User player : currentRoom.getPlayers()) {
                             if (!player.equals(firstPlayer)) {
                                 ClientHandler playerHandler = clientHandlers.get(player);
                                 if (playerHandler != null) {
-                                    playerHandler.sendResponse("You are a guesser. Try to guess the word!");
+                                    playerHandler.sendResponse("NOTIFICATION_ROLE_SUCCESS You are a guesser. Try to guess the word!");
                                 }
                             }
                         }
@@ -344,78 +355,87 @@ public class Server {
                     return;
                 }
             }
-            sendResponse("Room '" + roomName + "' not found");
+            sendResponse("JOIN_ROOM_FAILURE Room '" + roomName + "' not found");
         }
 
+
         private void handleLeaveRoom() {
+            if (currentUser == null) {
+                sendResponse("LEAVE_ROOM_FAILURE You need to be logged in to leave a room.");
+                return;
+            }
+
             if (currentRoom != null) {
-                currentRoom.removePlayer(currentUser );
+                currentRoom.removePlayer(currentUser);
                 currentRoom.removeClient(socket);
 
-                // Check if the room is empty
                 if (currentRoom.getCurrentPlayers() == 0) {
-                    rooms.remove(currentRoom); // Remove the room from the list
-                    sendResponse("The room has been removed as it is empty.");
+                    rooms.remove(currentRoom);
+
+                    sendResponse("LEAVE_ROOM_SUCCESS The room has been removed as it is empty.");
                 } else {
-                    sendResponse("Left the current room");
+                    sendResponse("LEAVE_ROOM_SUCCESS Left the current room");
                 }
 
                 currentRoom = null;
             } else {
-                sendResponse("You are not in any room");
+                sendResponse("LEAVE_ROOM_FAILURE You are not in any room");
             }
         }
 
+
         private void handleSendHint(String[] command) {
-            if (command.length < 2) {
-                sendResponse("Invalid SEND_HINT command. Use: SEND_HINT <hint>");
+            if (currentUser == null) {
+                sendResponse("SEND_HINT_FAILURE You need to be logged in to send a hint.");
                 return;
             }
 
-            // Check if the current user is the guesser
-            if (!currentUser  .equals(currentRoom.getCurrentHinter())) {
-                sendResponse("You cannot send hints while you are the guesser.");
+            if (currentRoom == null) {
+                sendResponse("SEND_HINT_FAILURE You need to join a room to send a hint.");
+                return;
+            }
+
+            if (!currentUser.equals(currentRoom.getCurrentHinter())) {
+                sendResponse("SEND_HINT_FAILURE You cannot send hints while you are the guesser.");
                 return;
             }
 
             String hint = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
-            currentRoom.sendMessageToAll(currentUser  .getUsername() + " sends a hint: " + hint);
-        }
 
+            currentRoom.sendMessageToAll("SEND_HINT_TO_USERS_SUCCESS " + currentUser.getUsername() + " sends a hint: " + hint);
+            sendResponse("SEND_HINT_SUCCESS");
+        }
         private void handleGuessWord(String[] command) {
             if (command.length < 2) {
-                sendResponse("Invalid GUESS_WORD command. Use: GUESS_WORD <word>");
+                sendResponse("GUESS_WORD_FAILURE Invalid GUESS_WORD command.");
                 return;
             }
 
-            String guessedWord = command[1];
+            String guessedWord = String.join(" ", Arrays.copyOfRange(command, 1, command.length));
             String correctWord = currentRoom.getCurrentWord();
 
-            // Check if the current user is the hinter
             if (currentUser.equals(currentRoom.getCurrentHinter())) {
-                sendResponse("You cannot guess the word while you are the hinter.");
+                sendResponse("GUESS_WORD_FAILURE You cannot guess the word while you are the hinter.");
                 return;
             }
 
-            // Check if the user has already guessed
             if (currentUser.isHasGuessed()) {
-                sendResponse("You have already guessed this round. Please wait for the next round.");
+                sendResponse("GUESS_WORD_FAILURE You have already guessed this round. Please wait for the next round.");
                 return;
             }
 
-            // Mark the user as having guessed
-            currentUser.setHasGuessed(true);
-
-            // Check if the current user's guess is correct
             boolean isCorrectGuess = guessedWord.equalsIgnoreCase(correctWord);
+            currentUser.setHasGuessed(true);
+            currentUser.setGuessedCorrectly(isCorrectGuess);
+
             if (isCorrectGuess) {
-                currentRoom.sendMessageToAll(currentUser.getUsername() + " guessed correctly!");
+                currentRoom.sendMessageToAll("GUESS_RESULT_SUCCESS " + currentUser.getUsername() + " guessed correctly!");
             } else {
-                currentRoom.sendMessageToAll(currentUser.getUsername() + " guessed incorrectly!");
+                currentRoom.sendMessageToAll("GUESS_RESULT_SUCCESS " + currentUser.getUsername() + " guessed incorrectly!");
+                currentUser.addScore(-1);
             }
 
-            // Check if all players (excluding the hinter) have guessed
-            int totalPlayers = currentRoom.getPlayers().size() - 1; // Exclude the hinter
+            int totalPlayers = currentRoom.getPlayers().size() - 1;
             int guessedPlayers = 0;
             for (User player : currentRoom.getPlayers()) {
                 if (player.isHasGuessed() && !player.equals(currentRoom.getCurrentHinter())) {
@@ -423,58 +443,47 @@ public class Server {
                 }
             }
 
-            // If all players have guessed
+            int correctPoints = correctWord.length();
             if (guessedPlayers >= totalPlayers) {
-                currentRoom.sendMessageToAll("All players have made their guesses!");
-
-                // Count the number of correct guesses
+                currentRoom.sendMessageToAll("ALL_GUESSED_SUCCESS All players have made their guesses!");
                 int correctGuesses = 0;
                 for (User player : currentRoom.getPlayers()) {
                     if (player.isHasGuessed() && !player.equals(currentRoom.getCurrentHinter())) {
-                        if (guessedWord.equalsIgnoreCase(correctWord)) {
+                        if (player.isGuessedCorrectly()) {
                             correctGuesses++;
+                            player.addScore(correctPoints);
+                            currentRoom.sendMessageToAll("OVER_ROUND_SUCCESS " + player.getUsername() + " earns " + correctPoints + " points for correct guess!");
                         }
                     }
                 }
 
-                // Award points to players who guessed correctly
-                for (User player : currentRoom.getPlayers()) {
-                    if (player.isHasGuessed() && !player.equals(currentRoom.getCurrentHinter())) {
-                        if (guessedWord.equalsIgnoreCase(correctWord)) {
-                            int scoreToAdd = correctGuesses * correctWord.length();
-                            player.addScore(scoreToAdd);
-                            currentRoom.sendMessageToAll(player.getUsername() + " earns " + scoreToAdd + " points!");
-                        }
-                    }
-                }
+                User hinter = currentRoom.getCurrentHinter();
+                int hinterPoints = correctPoints * correctGuesses;
+                hinter.addScore(hinterPoints);
+                currentRoom.sendMessageToAll("OVER_ROUND_SUCCESS " + hinter.getUsername() + " (hinter) earns " + hinterPoints + " points!");
 
-                // Reset guess state for all players
                 for (User player : currentRoom.getPlayers()) {
                     player.setHasGuessed(false);
+                    player.setGuessedCorrectly(false);
                 }
 
-                // Select a new hinter
                 User oldHinter = currentRoom.getCurrentHinter();
                 User newHinter = currentRoom.selectNextHinter(oldHinter);
                 currentRoom.setCurrentHinter(newHinter);
 
-                // Select a new random word
                 Random random = new Random();
                 String randomWord = GameConstants.GUESS_WORDS.get(random.nextInt(GameConstants.GUESS_WORDS.size()));
                 currentRoom.setCurrentWord(randomWord);
 
-                // Notify the new hinter
                 ClientHandler newHinterHandler = clientHandlers.get(newHinter);
                 if (newHinterHandler != null) {
-                    newHinterHandler.sendResponse("You are the new hinter! The word to guess is: " + randomWord);
+                    newHinterHandler.sendResponse("NOTIFICATION_ROLE_SUCCESS You are the new hinter! The word to guess is: " + randomWord);
                 }
-
-                // Notify other players
                 for (User player : currentRoom.getPlayers()) {
                     if (!player.equals(newHinter)) {
                         ClientHandler playerHandler = clientHandlers.get(player);
                         if (playerHandler != null) {
-                            playerHandler.sendResponse("New round! " + newHinter.getUsername() + " is the new hinter. Get ready to guess!");
+                            playerHandler.sendResponse("NEW_ROUND_SUCCESS New round! " + newHinter.getUsername() + " is the new hinter. Get ready to guess!");
                         }
                     }
                 }
@@ -482,10 +491,10 @@ public class Server {
         }
 
         private void handleCheckScore() {
-            sendResponse("Your current score is: " + currentUser  .getScore());
+            sendResponse("MY_POINTS_SUCCESS Your points are: " + currentUser  .getScore());
         }
 
-        private void sendResponse(String response) {
+        private void sendResponse(String response ) {
             out.println(response);
             System.out.println("Sent: " + response);
         }
